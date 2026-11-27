@@ -26,6 +26,8 @@ pub mod callhook;
 #[cfg(windows)]
 mod console_insn;
 mod crash;
+#[cfg(windows)]
+mod hooks;
 pub mod frame_rate;
 pub mod prepare;
 pub(crate) mod publish;
