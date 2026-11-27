@@ -30,6 +30,8 @@ export VICTORY_TEXTURE_ROOM_PERCENT=94
 export VICTORY_CARD_ROOM_FOR_TARGETS_MB=1536
 # 无损解：关掉多余的 host-RAM soft cap（保留 critical OOM 保护），纹理上传快 3 倍
 export VICTORY_TEXTURE_RAM_CAPS=0
+export VICTORY_READ_KEEP_MB=64
+export VICTORY_SECTION_MB=2
 export VICTORY_PAGE_POOL=1
 export VICTORY_STAGING_PACK=1
 export VICTORY_LEVELS_ON_DEMAND=0
@@ -91,18 +93,18 @@ export VICTORY_SOFT_VIEWS=copies
 export VICTORY_SAMPLERS_MADE=1
 export VICTORY_TABLE_NAMED_ONLY=1
 export VICTORY_QUEUE_MARKS=1
-export VICTORY_PORT_CONSTANTS=1
+export VICTORY_PORT_CONSTANTS=0
 export VICTORY_EARLY_DEPTH=1
 
 # 自动过场（基于 draws/frame 的按键脚本，自动点过账户进世界）
-export VICTORY_AUTO_INPUT='d>=15,rep(A,1,d<10),w3,d>=20,w1,rep(A,1,d>=35),w1.5,Down,w7,Down,w0.6,A,w1.5,A,w0.7,Down,w0.5,A,w0.7,Down,w0.5,A'
+export VICTORY_AUTO_INPUT='d>=15,rep(A,1,d>=10)'
 
 # 环境光（无光追时）
 export VICTORY_AMBIENT=0.8
 export VICTORY_AMBIENT_AIR=1.5
 
 echo "=== victory-scarlett-3070 综合版 (RTX 4060 8GB, 有脸+540p, scarlett-fox 优化) ==="
-echo "RENDER_SCALE=0.5 + OWN_UPSCALER + 修脸三件套 + PAGE_POOL + PORT_CONSTANTS + DescriptorSync5 + TEXBACK_ASYNC"
+echo "RENDER_SCALE=0.5 + OWN_UPSCALER + 修脸三件套 + PAGE_POOL + SECTION_MB + DescriptorSync5 + TEXBACK_ASYNC"
 echo "Log: D:/gta/重编译资料/ab/scarlett_8gb.log"
 echo ""
 

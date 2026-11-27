@@ -460,15 +460,39 @@ thread_local! {
     static READ: std::cell::RefCell<Vec<u8>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
+/// The most bytes a thread's texture read buffer keeps between reads.
+/// (`VICTORY_READ_KEEP_MB`; unset, it keeps the largest buffer as before.)
+/// Large textures can otherwise leave one large allocation on every
+/// submitting thread until the game exits.
+fn read_keep() -> Option<usize> {
+    static MOST: std::sync::OnceLock<Option<usize>> = std::sync::OnceLock::new();
+    *MOST.get_or_init(|| {
+        std::env::var("VICTORY_READ_KEEP_MB")
+            .ok()
+            .and_then(|value| value.trim().parse::<usize>().ok())
+            .map(|mb| mb.saturating_mul(1 << 20))
+    })
+}
+
 /// Calls `f` with `size` bytes of this thread's read buffer (their
 /// contents are whatever the last texture left).
 fn with_read<R>(size: usize, f: impl FnOnce(&mut [u8]) -> R) -> R {
+    with_read_keeping(size, read_keep(), f)
+}
+
+/// Like [`with_read`], but drops a buffer whose capacity exceeds `keep` once
+/// the caller has finished using it.
+fn with_read_keeping<R>(size: usize, keep: Option<usize>, f: impl FnOnce(&mut [u8]) -> R) -> R {
     READ.with(|read| {
         let mut read = read.borrow_mut();
         if read.len() < size {
             read.resize(size, 0);
         }
-        f(&mut read[..size])
+        let out = f(&mut read[..size]);
+        if keep.is_some_and(|most| read.capacity() > most) {
+            *read = Vec::new();
+        }
+        out
     })
 }
 
@@ -2182,6 +2206,24 @@ fn staging(resource: This, copy: &crate::resource::HostTexture, first: u32) -> O
 #[cfg(test)]
 mod title_memory_tests {
     use super::with_title;
+
+    #[test]
+    fn oversized_texture_read_buffer_is_released_after_use() {
+        use super::{READ, with_read_keeping};
+        const MOST: usize = 1 << 20;
+        with_read_keeping(4 * MOST, Some(MOST), |bytes| {
+            assert_eq!(bytes.len(), 4 * MOST);
+            bytes[0] = 0x5a;
+        });
+        assert_eq!(READ.with(|read| read.borrow().capacity()), 0);
+
+        with_read_keeping(4096, Some(MOST), |bytes| {
+            assert_eq!(bytes.len(), 4096);
+            assert_eq!(bytes[0], 0);
+        });
+        let kept = READ.with(|read| read.borrow().capacity());
+        assert!((4096..=MOST).contains(&kept), "{kept}");
+    }
 
     /// Title memory whose tail is reserved and not committed reads through
     /// the copy as its bytes and then zeros, without a fault; so does

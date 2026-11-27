@@ -20,13 +20,13 @@ def main():
             if len(values) != 1:
                 raise ValueError('Invalid setting: ' + line)
             env[m.group(1)] = values[0]
-    env['VICTORY_AUTO_INPUT'] = 'A'
+    env['VICTORY_AUTO_INPUT'] = 'rep(A,1,d>=10)'
     env['VICTORY_AUTO_INPUT_START_S'] = '15'
     for name in ('VICTORY_GAME_DIR', 'VICTORY_CACHE_DIR', 'VICTORY_DATA_DIR'):
         if not Path(env[name]).is_dir():
             raise FileNotFoundError(name + ': ' + env[name])
     if '--check' in sys.argv:
-        print('Configuration and required files OK; one gamepad A at 15s; native 1080p; HUD enabled.')
+        print('Configuration and required files OK; gamepad A taps from 15s until world draws; native 1080p; HUD enabled.')
         return
     lock = (BASE / 'ab' / 'game-cache.lock').open('a+b')
     try:

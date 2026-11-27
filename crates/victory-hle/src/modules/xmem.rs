@@ -412,6 +412,7 @@ pub extern "system" fn XMemIsToolsMemAvailable() -> BOOL {
 // mapping is a view of consecutive slices in place of a host placeholder.
 
 const PAGE: usize = 64 << 10;
+mod section_mb;
 
 struct Section {
     handle: HANDLE,
@@ -708,64 +709,24 @@ pub extern "system" fn XMemAllocatePhysicalPages(
     }
     // SAFETY: checked non-null.
     let n = unsafe { *count };
-    let Some(size) = n.checked_mul(PAGE).filter(|&s| s > 0) else {
+    if n.checked_mul(PAGE).filter(|&size| size > 0).is_none() {
         return 0;
-    };
-    // A pagefile-backed section of `size` bytes, its pages committed when
-    // first mapped or written (`commit`): the title asks for 6.1
-    // GiB at once, which a busy host often cannot commit (error 1450).
-    // SAFETY: plain section creation.
-    let handle = unsafe {
-        CreateFileMappingW(
-            INVALID_HANDLE_VALUE,
-            std::ptr::null(),
-            // Under Wine a committed section is a sparse file, free until
-            // touched, and committing a reserved one page by page costs a
-            // wineserver request each that scans every range committed so
-            // far: commit it whole there.
-            PAGE_READWRITE | if on_wine() { SEC_COMMIT } else { SEC_RESERVE },
-            (size as u64 >> 32) as u32,
-            size as u32,
-            std::ptr::null(),
-        )
-    };
-    if handle.is_null() {
-        let error = std::io::Error::last_os_error();
+    }
+    let first = match section_mb::allocate_physical(n, section_mb::section_pages()) {
+        Ok(first) => first,
+        Err(error) => {
         tracing::warn!(n, %error, "XMemAllocatePhysicalPages failed");
         // SAFETY: checked non-null.
         unsafe { count.write(0) };
         return 0;
-    }
+        }
+    };
     tracing::debug!(
         n,
         flags = format_args!("{flags:#x}"),
         "XMemAllocatePhysicalPages"
     );
-    // For the GPU side's in-place census: only a committed section can be
-    // opened as a host heap.
-    victory_gpu::title_memory_section(handle as usize, size as u64, on_wine());
-    let section = Arc::new(Section {
-        handle,
-        pages: n,
-        window: std::sync::OnceLock::new(),
-        committed: (0..n.div_ceil(64)).map(|_| std::sync::atomic::AtomicU64::new(0)).collect(),
-        resident: (0..n.div_ceil(64)).map(|_| std::sync::atomic::AtomicU64::new(0)).collect(),
-        discarded: (0..n.div_ceil(64)).map(|_| std::sync::atomic::AtomicU64::new(0)).collect(),
-    });
-    TITLE_PAGES.fetch_add(size, Ordering::Relaxed);
-    let mut table = page_table_mut();
-    let first = table.next_page;
-    table.next_page += n * FRAMES;
-    for index in 0..n {
-        let slice = Slice {
-            section: section.clone(),
-            index,
-        };
-        table.pages.insert(first + index * FRAMES, slice);
-    }
-    // Title memory is touched without our locks: a fault there may wait for
-    // a mapping call, which takes them.
-    drop(table);
+    TITLE_PAGES.fetch_add(n * PAGE, Ordering::Relaxed);
     for index in 0..n {
         // SAFETY: the title passes room for `n` page numbers.
         unsafe { pages.add(index).write(first + index * FRAMES) };
