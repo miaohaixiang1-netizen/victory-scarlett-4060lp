@@ -5,6 +5,22 @@ laptop GPU. This is the combination the `scarlett-fox-8gb-stable` branch is
 verified against. Everything here was reached by single-variable A/B tests;
 nothing is a guess.
 
+> ## MANDATORY before first run: full pre-warm
+>
+> The numbers above are only reachable after a **full shader + pipeline
+> pre-warm**. Do not skip it.
+>
+> - Shaders: **25 782** translated (`victory.exe shaders <shaders.rpf>`)
+> - Pipelines: **83 737** pre-built (`victory.exe warm --jobs 32`, ~8 min)
+> - Total coverage: **100 %** — every shader and every pipeline.
+>
+> Without it the first session translates while playing: severe compile
+> stalls on entering scenes, and character faces can be drawn wrong for that
+> session. After the full warm every scene is compile-stall-free and faces are
+> correct from the first frame. The warm result is cached, so later starts
+> skip it; an incremental warm (`victory.exe warm --jobs 16`) only fills in
+> newly seen pipelines after a session.
+
 ## Runtime environment
 
 | item | value |
@@ -236,15 +252,21 @@ Softer picture; use where the native path is too heavy.
    ```
    cargo build --release -p victory
    ```
-2. Pre-translate the shaders once (a few minutes; remembered in the cache):
+2. Pre-translate the shaders once (a few minutes; remembered in the cache).
+   This produces **25 782** translated shaders:
    ```
    victory.exe shaders <shaders.rpf in your game dir>
    ```
-3. Full pipeline pre-warm (avoids in-session compile hitches):
+3. **Full pipeline pre-warm — mandatory.** Builds all **83 737** pipelines
+   ahead of time so no scene ever compiles while playing:
    ```
    victory.exe warm --jobs 32
    ```
-   ~83 700 pipelines, ~8 min; afterwards every scene is compile-stall-free.
+   ~8 min for the full set. After this, shader coverage (25 782) + pipeline
+   coverage (83 737) = **100 %**, and every scene is compile-stall-free with
+   correct faces from the first frame. The result is cached, so later starts
+   skip it; run `victory.exe warm --jobs 16` after a session to incrementally
+   fill in only the pipelines that session newly saw.
 
 ## Known issues
 
